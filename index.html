@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Calcula tu nota definitiva con porcentajes personalizados. Datos guardados localmente en IndexedDB." />
+  <meta name="theme-color" content="#1e3a5f" />
+  <title>Cálculo de Notas Definitivas</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <h1 class="brand">
+        <span class="brand__mark" aria-hidden="true">5.0</span>
+        Notas Definitivas
+      </h1>
+      <!-- Visible solo con sesión activa -->
+      <div class="session" id="session-bar" hidden>
+        <span class="session__user">
+          <span class="session__label">Documento</span>
+          <strong id="session-doc"></strong>
+        </span>
+        <button type="button" class="btn btn--ghost" id="btn-logout">Cerrar sesión</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" id="main">
+    <!-- Mensaje si el navegador no soporta IndexedDB -->
+    <section class="card card--error" id="view-unsupported" hidden>
+      <h2>Navegador no compatible</h2>
+      <p>Esta aplicación necesita IndexedDB. Usa una versión reciente de Chrome, Edge, Firefox o Safari, y evita la navegación privada si tu navegador la bloquea.</p>
+    </section>
+
+    <!-- ============ ESTADO 1: ACCESO ============ -->
+    <section class="card card--narrow" id="view-login" hidden aria-labelledby="login-title">
+      <h2 id="login-title">Ingresa con tu documento</h2>
+      <p class="muted">Sin contraseña. Si es tu primera vez, te registramos en un paso.</p>
+
+      <form id="form-login" novalidate>
+        <div class="field">
+          <label for="input-doc">Número de documento</label>
+          <input id="input-doc" name="documento" type="text" inputmode="numeric"
+                 autocomplete="off" maxlength="15" placeholder="Ej: 1020304050" required
+                 aria-describedby="doc-error" />
+          <p class="field__error" id="doc-error" role="alert"></p>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block">Continuar</button>
+      </form>
+
+      <!-- Flujo rápido de registro (RN-01) -->
+      <form id="form-register" hidden novalidate>
+        <div class="notice notice--info">
+          El documento <strong id="register-doc"></strong> no está registrado. Créalo ahora.
+        </div>
+        <div class="field">
+          <label for="input-name">Nombre <span class="muted">(opcional)</span></label>
+          <input id="input-name" name="nombre" type="text" maxlength="60" autocomplete="name" placeholder="Tu nombre" />
+        </div>
+        <div class="row">
+          <button type="button" class="btn btn--ghost" id="btn-register-cancel">Cancelar</button>
+          <button type="submit" class="btn btn--primary">Registrarme e ingresar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ============ ESTADOS 2 y 3: PANEL ============ -->
+    <div class="dashboard" id="view-dashboard" hidden>
+      <div class="dashboard__main">
+        <!-- Estado 2a: cantidad de notas -->
+        <section class="card" id="step-count" aria-labelledby="count-title">
+          <h2 id="count-title"><span id="greeting">Hola</span>, configura tu evaluación</h2>
+          <form id="form-count" class="inline-form" novalidate>
+            <div class="field">
+              <label for="input-count">¿Cuántas notas vas a evaluar?</label>
+              <input id="input-count" type="number" min="1" max="20" step="1" inputmode="numeric"
+                     placeholder="Ej: 3" required aria-describedby="count-error" />
+              <p class="field__error" id="count-error" role="alert"></p>
+            </div>
+            <button type="submit" class="btn btn--primary">Generar campos</button>
+          </form>
+        </section>
+
+        <!-- Estado 2b: inputs dinámicos -->
+        <section class="card" id="step-grades" hidden aria-labelledby="grades-title">
+          <div class="card__head">
+            <h2 id="grades-title">Notas y porcentajes</h2>
+            <div class="pct-meter" id="pct-meter" aria-live="polite">
+              <div class="pct-meter__bar"><span id="pct-meter-fill"></span></div>
+              <span class="pct-meter__text" id="pct-meter-text">0% de 100%</span>
+            </div>
+          </div>
+
+          <form id="form-grades" novalidate>
+            <div class="grades-head" aria-hidden="true">
+              <span>#</span><span>Nota (0.0 – 5.0)</span><span>Porcentaje (%)</span>
+            </div>
+            <div id="grades-list" class="grades-list"></div>
+
+            <div class="notice notice--error" id="grades-alert" role="alert" hidden></div>
+
+            <div class="row row--end">
+              <button type="button" class="btn btn--ghost" id="btn-reset">Cambiar cantidad</button>
+              <button type="button" class="btn btn--ghost" id="btn-equal">Repartir % en partes iguales</button>
+              <button type="submit" class="btn btn--primary">Calcular nota definitiva</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Estado 3: resultado -->
+        <section class="card result" id="step-result" hidden aria-live="polite" aria-labelledby="result-title">
+          <h2 id="result-title" class="sr-only">Resultado</h2>
+          <div class="result__score">
+            <span class="result__label">Nota definitiva</span>
+            <span class="result__value" id="result-value">0.00</span>
+          </div>
+          <span class="badge" id="result-badge">—</span>
+          <p class="muted" id="result-detail"></p>
+        </section>
+      </div>
+
+      <!-- Historial -->
+      <aside class="card dashboard__side" aria-labelledby="history-title">
+        <div class="card__head">
+          <h2 id="history-title">Historial</h2>
+          <button type="button" class="btn btn--link" id="btn-clear-history" hidden>Borrar todo</button>
+        </div>
+        <p class="muted" id="history-empty">Aún no tienes cálculos guardados.</p>
+        <ol class="history" id="history-list"></ol>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>Tus datos se guardan solo en este navegador (IndexedDB). Escala 0.0 – 5.0 · Aprueba con 3.0</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
